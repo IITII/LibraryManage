@@ -15,8 +15,8 @@ create table book(bno varchar(32) primary key ,
                   bpu varchar(32),
                   bpl varchar(1024) not null ,
                   bpr smallmoney not null ,
-                  MAX_NUMBER smallint not null ,
-                  currentNumber smallint not null );
+                  MAX_NUMBER smallint not null check (MAX_NUMBER >=0),
+                  currentNumber smallint not null check (currentNumber >= 0 and currentNumber <= MAX_NUMBER));
 go
 --在图书的出版社列上建立非聚合索引
 create nonclustered index book_bpu on
@@ -29,7 +29,7 @@ go
 create table card(sno int primary key ,
                   sid int unique foreign key references student(sid),
                   MAX_ORDER smallint not null check (MAX_ORDER > 0),
-                  ordered smallint default 0 check (ordered >= 0),
+                  ordered smallint default 0 check (ordered >= 0 and ordered <= MAX_ORDER),
                   bill money
 )
 go
@@ -47,17 +47,9 @@ create table fine(recordID int primary key foreign key references record(recordI
                   fineType char(4) not null check (fineType='超期'or fineType='丢失'),
                   fine smallmoney not null );
 go
---创建查看借阅记录的视图
-create view recordAll
-as
-    select record.recordID, sno, bno, status, startTime, endTime, fineType,fine
-           from record,fine
-where record.recordID=fine.recordID
-with check option ;
-go
 
 --借阅触发器
-create trigger borrow_book on record after insert as
+/* create trigger borrow_book on record after insert as
     begin
         declare @bookNumber smallint
         select @bookNumber=currentNumber from book
@@ -70,9 +62,9 @@ create trigger borrow_book on record after insert as
         raiserror ('当前欲借书籍数量已不足，无法借阅',16,1)
         rollback transaction
     end
-    GO
+    GO */
 --还书触发器
-create trigger return_book on record after update as
+/*create trigger return_book on record after update as
     begin
         declare @status int, @money smallmoney,@fine smallmoney,@bookNumber smallint,@startTime date,@endTime date,@total smallint,@bno varchar(32),@sno int,@recordID int
             select @bookNumber=currentNumber, @total = MAX_NUMBER from book
@@ -105,13 +97,13 @@ create trigger return_book on record after update as
 
         end
     end
-    GO
+    GO*/
 --查看详细借阅信息的存储过程
 create procedure get_record_info_by_recordID @recordID int as
     if @recordID is not null
-    select * from recordAll where recordID = @recordID;
+    select * from record where recordID = @recordID;
     else
-        select * from recordAll;
+        select * from record;
         GO
 --查看图书信息存储过程
 create procedure get_book_info_by_bpu_or_bno_or_bna @bno varchar(32),@bna varchar(64),@bpu varchar(32) as
@@ -136,19 +128,67 @@ create procedure getBookInfo @bno varchar(32) as
             GO
 --借书存储过程
 create procedure order_book @sno int,@bno varchar(32) as
-    insert into record(sno, bno, status, startTime, endTime) values (@sno,@bno,'未还',getdate(),NULL);
-    GO
+begin
+    declare @currentNumber smallint,@totalTime int, @MAX_ORDER smallint,@ordered smallint,@startTime datetime
+    select @currentNumber=currentNumber from book where bno=@bno;
+    --??
+    select @startTime = startTime from record where sno = @sno;
+    select @MAX_ORDER=MAX_ORDER,@ordered=ordered from card where sno = @sno;
+    select @totalTime=DATEDIFF(DAY,@startTime,GETDATE());
+    --有超期的书
+    if @totalTime > 60
+        return -1;
+    --达到借书上限
+    if @ordered >= @MAX_ORDER
+        return -2
+    --检查书籍库存情况
+    if @currentNumber <= 0
+        return -3;
 
+    --添加借阅记录，更新书籍库存和借书证的借书数量
+     insert into record(sno, bno, status, startTime, endTime) values (@sno,@bno,'未还',getdate(),NULL);
+     update book set currentNumber = @currentNumber -1 where bno = @bno;
+     update card set ordered = @ordered + 1 where sno = @sno;
+
+end
+return 0;
+GO
 --CADD
+drop procedure return_book;
+go
+
+create procedure return_book @recordID int as
+begin
+        declare @sno int,@bno varchar(32),@status char(8),@diffTime int,@fine float,@currentNumber smallint,@ordered smallint,@endTime datetime
+        select @diffTime = DATEDIFF(DAY,startTime,GETDATE()),@endTime=GETDATE(), @sno = sno,@bno=bno,@status=status from record where recordID = @recordID;
+        select @currentNumber = currentNumber from book where bno = @bno;
+        select @ordered = ordered from card where sno = @sno;
+        update book set currentNumber = @currentNumber + 1 where bno = @bno;
+        update card set ordered = @ordered - 1 where sno = @sno;
+        if not exists(select * from record where recordID = @recordID )
+            return -1;
+        if  @diffTime > 60
+            begin
+         update record set status = '超期' where recordID = @recordID;
+         select @fine = (@diffTime-60)*0.2
+         insert into fine values (@recordID,'超期',@fine);
+         return 1;
+        end
+            else
+        update record set status = '已还',endTime = @endTime where recordID = @recordID;
+        return 0;
+end
+go
+
 --还书存储过程
-create procedure pro_return_book @record int, @status char(8) as
+/*create procedure pro_return_book @record int, @status char(8) as
     begin
     if @status = '已还'
     update record set status = @status, endTime = getdate() where recordID = @record;
     else if @status = '超期' or @status = '丢失'
         update record set status = @status where recordID = @record;
     end
-GO
+GO*/
 --date格式：月/日/年
 insert into book values
 ('1', '组合数学', '11/05/2012','机械工业出版社', 'B-203', 35,  5, 5),
@@ -166,7 +206,6 @@ go
 
 use library
 drop table fine,record,card,book,student;
-drop view recordAll;
 use master;
 drop database library;
 go
@@ -176,8 +215,3 @@ create user IITII for login IITII;
 go
 grant select ,update ,execute ,delete to IITII;
 go
-
-
-execute getBookInfo @bno=null;
-go
-execute getBookInfo @bno='%1%';

@@ -5,10 +5,10 @@ public class Record {
     private int Sno;
     private String Bno;
     private String Status;
-    private Date StartTime;
-    private Date endTime;
+    private String StartTime;
+    private String endTime;
     private Record(){}
-    public Record(int RecordID,int Sno,String Bno,String Status,Date startTime,Date endTime){
+    public Record(int RecordID,int Sno,String Bno,String Status,String startTime,String endTime){
         this.Bno=Bno;
         this.endTime=endTime;
         this.RecordID=RecordID;
@@ -50,19 +50,19 @@ public class Record {
         Status = status;
     }
 
-    public Date getStartTime() {
+    public String getStartTime() {
         return StartTime;
     }
 
-    public void setStartTime(Date startTime) {
+    public void setStartTime(String startTime) {
         StartTime = startTime;
     }
 
-    public Date getEndTime() {
+    public String getEndTime() {
         return endTime;
     }
 
-    public void setEndTime(Date endTime) {
+    public void setEndTime(String endTime) {
         this.endTime = endTime;
     }
 }
