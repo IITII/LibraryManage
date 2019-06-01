@@ -16,7 +16,7 @@ create table book(bno varchar(32) primary key ,
                   bpl varchar(1024) not null ,
                   bpr smallmoney not null ,
                   MAX_NUMBER smallint not null check (MAX_NUMBER >=0),
-                  currentNumber smallint not null check (currentNumber >= 0 and currentNumber <= MAX_NUMBER));
+                  currentNumber smallint not null check (currentNumber >= 0));
 go
 --在图书的出版社列上建立非聚合索引
 create nonclustered index book_bpu on
@@ -29,7 +29,7 @@ go
 create table card(sno int primary key ,
                   sid int unique foreign key references student(sid),
                   MAX_ORDER smallint not null check (MAX_ORDER > 0),
-                  ordered smallint default 0 check (ordered >= 0 and ordered <= MAX_ORDER),
+                  ordered smallint default 0 check (ordered >= 0),
                   bill money
 )
 go
@@ -170,7 +170,7 @@ begin
         if  @diffTime > 60
             begin
          update record set status = '超期' where recordID = @recordID;
-         select @fine = (@diffTime-60)*0.2
+         select @fine = (@diffTime-60)*0.02
          insert into fine values (@recordID,'超期',@fine);
          return 1;
         end
