@@ -203,7 +203,7 @@ go
 insert into card values (1,1,5,0,500),
                         (2,2,4,0,0);
 go
-
+/*
 use library
 drop table fine,record,card,book,student;
 use master;
@@ -215,3 +215,4 @@ create user IITII for login IITII;
 go
 grant select ,update ,execute ,delete to IITII;
 go
+*/
